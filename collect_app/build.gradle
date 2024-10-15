@@ -76,7 +76,7 @@ android {
     }
 
     defaultConfig {
-        applicationId('org.odk.collect.android')
+        applicationId('org.prodigy.collect.android')
         minSdkVersion Versions.android_min_sdk
         targetSdkVersion Versions.android_target_sdk
         versionCode LEGACY_BUILD_NUMBER_OFFSET + getMasterCommitCount()
@@ -231,6 +231,7 @@ configurations.all {
 }
 
 dependencies {
+    implementation 'androidx.exifinterface:exifinterface:1.3.7'
     coreLibraryDesugaring Dependencies.desugar
 
     implementation project(':shared')

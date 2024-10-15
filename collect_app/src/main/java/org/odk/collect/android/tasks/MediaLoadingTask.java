@@ -18,6 +18,7 @@ import org.odk.collect.settings.SettingsProvider;
 
 import java.io.File;
 import java.lang.ref.WeakReference;
+import java.util.List;
 
 import javax.inject.Inject;
 
@@ -46,19 +47,32 @@ public class MediaLoadingTask extends AsyncTask<Uri, Void, File> {
     protected File doInBackground(Uri... uris) {
         if (instanceFile != null) {
             String extension = ContentUriHelper.getFileExtensionFromUri(uris[0]);
-
-            File newFile = FileUtils.createDestinationMediaFile(instanceFile.getParent(), extension);
-            FileUtils.saveAnswerFileFromUri(uris[0], newFile, Collect.getInstance());
             QuestionWidget questionWidget = formFillingActivity.get().getWidgetWaitingForBinaryData();
+            File newFile = null;
+            List<String> attributes = List.of("", "", "");
+            if (questionWidget instanceof BaseImageWidget) {
+                String prefix="";
+                try {
+                    attributes = FileUtils.readExifData(uris[0], Collect.getInstance());
+                    prefix = attributes.get(1) + "," + attributes.get(2) + " " + attributes.get(0) + "_";
+                } catch (Exception e) {
+                }
+                newFile = FileUtils.createDestinationMediaFile(instanceFile.getParent(), extension, prefix);
+            } else {
+                newFile = FileUtils.createDestinationMediaFile(instanceFile.getParent(), extension);
+            } FileUtils.saveAnswerFileFromUri(uris[0], newFile, Collect.getInstance());
 
             // apply image conversion if the widget is an image widget
             if (questionWidget instanceof BaseImageWidget) {
+                try {
+                    FileUtils.printLocationAndDateOnOriginalImage(newFile, attributes.get(0), attributes.get(1), attributes.get(2));
+                } catch (Exception e) {
+                }
                 String imageSizeMode = settingsProvider.getUnprotectedSettings().getString(KEY_IMAGE_SIZE);
                 imageCompressionController.execute(newFile.getPath(), questionWidget, formFillingActivity.get(), imageSizeMode);
             }
             return newFile;
-        }
-        return null;
+        } return null;
     }
 
     @Override

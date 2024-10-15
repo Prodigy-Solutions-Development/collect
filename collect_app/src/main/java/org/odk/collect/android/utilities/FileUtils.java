@@ -19,8 +19,15 @@ import static java.util.Arrays.asList;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.net.Uri;
 import android.webkit.MimeTypeMap;
+
+import androidx.exifinterface.media.ExifInterface;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -54,13 +61,19 @@ import timber.log.Timber;
  * @author Carl Hartung (carlhartung@gmail.com)
  */
 public final class FileUtils {
-    /** Suffix for the form media directory. */
+    /**
+     * Suffix for the form media directory.
+     */
     public static final String MEDIA_SUFFIX = "-media";
 
-    /** Filename of the last-saved instance data. */
+    /**
+     * Filename of the last-saved instance data.
+     */
     public static final String LAST_SAVED_FILENAME = "last-saved.xml";
 
-    /** Valid XML stub that can be parsed without error. */
+    /**
+     * Valid XML stub that can be parsed without error.
+     */
     public static final String STUB_XML = "<?xml version='1.0' ?><stub />";
 
     private FileUtils() {
@@ -74,10 +87,112 @@ public final class FileUtils {
             Timber.e(e);
         }
     }
+    public static List<String> readExifData(Uri imageUri, Context context) {
+        try {
+            InputStream inputStream = context.getContentResolver().openInputStream(imageUri);
+            ExifInterface exifInterface = new ExifInterface(inputStream);
 
+            String dateTaken = exifInterface.getAttribute(ExifInterface.TAG_DATETIME);
+            String latitude = exifInterface.getAttribute(ExifInterface.TAG_GPS_LATITUDE);
+            String latitudeRef = exifInterface.getAttribute(ExifInterface.TAG_GPS_LATITUDE_REF);
+            String longitude = exifInterface.getAttribute(ExifInterface.TAG_GPS_LONGITUDE);
+            String longitudeRef = exifInterface.getAttribute(ExifInterface.TAG_GPS_LONGITUDE_REF);
+
+            // Convert GPS latitude and longitude to decimal format
+            double lat = convertToDegree(latitude, latitudeRef);
+            double lon = convertToDegree(longitude, longitudeRef);
+
+            // Display or process the EXIF data
+            Timber.d("EXIF Data %s %s", "Date Taken: ", dateTaken);
+            Timber.d("EXIF Data %s %s", "Latitude: ", lat);
+            Timber.d("EXIF Data %s %s", "Longitude: ", lon);
+
+            inputStream.close();
+            return List.of(dateTaken, String.format(Locale.getDefault(), "%.8f", lat), String.format(Locale.getDefault(), "%.8f", lon));
+        } catch (IOException e) {
+            e.printStackTrace();
+            Timber.e(e);
+        }
+        return List.of("", "", "");
+    }
+    private static double convertToDegree(String gpsCoordinate, String ref) {
+        if (gpsCoordinate == null || ref == null) {
+            return 0.0;
+        }
+
+        String[] dms = gpsCoordinate.split(",");
+        double degrees = parseRational(dms[0]);
+        double minutes = parseRational(dms[1]);
+        double seconds = parseRational(dms[2]);
+
+        double decimalDegree = degrees + (minutes / 60) + (seconds / 3600);
+
+        // South and West are negative in terms of GPS
+        if (ref.equals("S") || ref.equals("W")) {
+            decimalDegree = -decimalDegree;
+        }
+
+        return decimalDegree;
+    }
+    private static double parseRational(String rational) {
+        String[] parts = rational.split("/");
+        if (parts.length == 2) {
+            return Double.parseDouble(parts[0]) / Double.parseDouble(parts[1]);
+        }
+        return 0.0;
+    }
+    public static void printLocationAndDateOnOriginalImage(File imageFile ,String dateTaken, String latitude, String longitude) {
+        try {
+            // Load the image as a Bitmap
+            Bitmap originalBitmap = BitmapFactory.decodeFile(imageFile.getAbsolutePath());
+
+            // Create a mutable bitmap to draw on
+            Bitmap mutableBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true);
+
+            // Create a Canvas to draw on the mutable bitmap
+            Canvas canvas = new Canvas(mutableBitmap);
+            Paint paint = new Paint();
+            paint.setColor(Color.WHITE);  // Set the text color
+            paint.setTextSize(100);        // Set the text size
+            paint.setAntiAlias(true);     // Enable anti-aliasing for smoother text
+            paint.setShadowLayer(5f, 0f, 0f, Color.BLACK); // Add shadow for better readability
+
+            // Prepare the location and date text to be displayed
+            String locationText = "Lat: " + latitude + ", Lon: " + longitude;
+            String dateText = "Date: " + dateTaken;
+
+            // Calculate the position to draw the text (bottom-left corner)
+            int x = 20;  // Distance from the left edge
+            int yLocation = mutableBitmap.getHeight() - 120;  // Distance from the bottom edge for location
+            int yDate = mutableBitmap.getHeight() - 20;  // Distance from the bottom edge for date
+
+            // Draw the location data and date on the bitmap
+            canvas.drawText(locationText, x, yLocation, paint);
+            canvas.drawText(dateText, x, yDate, paint);
+
+            // Save the modified bitmap back to the original image file
+            FileOutputStream outputStream = new FileOutputStream(imageFile);
+            mutableBitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+            outputStream.flush();
+            outputStream.close();
+
+            Timber.d("Image Update %s", "Location data and date successfully written on the image!");
+        } catch (IOException e) {
+            e.printStackTrace();
+            Timber.e(e);
+        }
+    }
     public static File createDestinationMediaFile(String fileLocation, String fileExtension) {
         return new File(fileLocation
                 + File.separator
+                + System.currentTimeMillis()
+                + "."
+                + fileExtension);
+    }
+    public static File createDestinationMediaFile(String fileLocation, String fileExtension, String prefix) {
+        return new File(fileLocation
+                + File.separator
+                + prefix
                 + System.currentTimeMillis()
                 + "."
                 + fileExtension);

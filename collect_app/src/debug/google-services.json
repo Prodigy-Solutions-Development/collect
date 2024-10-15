@@ -1,37 +1,26 @@
 {
   "project_info": {
-    "project_number": "462257085307",
-    "firebase_url": "https://opendatakit-debug.firebaseio.com",
-    "project_id": "opendatakit-debug",
-    "storage_bucket": "opendatakit-debug.appspot.com"
+    "project_number": "56006769694",
+    "project_id": "collect-c8a79",
+    "storage_bucket": "collect-c8a79.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:462257085307:android:64acb5e3c9e68ab5173bde",
+        "mobilesdk_app_id": "1:56006769694:android:4fb25382a9425ef781020f",
         "android_client_info": {
-          "package_name": "org.odk.collect.android"
+          "package_name": "org.prodigy.collect.android"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "462257085307-o9ll0ogq8jm4ta3q9av2mf2rh4ume9vj.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAClt29XaVTTO1m2R9u3WW-RimapSqjALg"
+          "current_key": "AIzaSyDKCj6GjMxkFwvwGjNIXNCP17DuZXz5ZCo"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "462257085307-o9ll0ogq8jm4ta3q9av2mf2rh4ume9vj.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }
