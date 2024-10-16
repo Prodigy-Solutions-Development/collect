@@ -53,3 +53,4 @@ robolectric-deps/
 **/robolectric-deps.properties
 
 .local-m2
+collect_app/src/main/java/org/odk/collect/android/preferences/Defaults.kt
