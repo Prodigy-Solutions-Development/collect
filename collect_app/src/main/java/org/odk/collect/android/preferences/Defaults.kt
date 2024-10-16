@@ -13,7 +13,7 @@ object Defaults {
         get() {
             val hashMap = HashMap<String, Any>()
             // odk_server_preferences.xml
-            hashMap[ProjectKeys.KEY_SERVER_URL] = "https://demo.getodk.org"
+            hashMap[ProjectKeys.KEY_SERVER_URL] = "https://prodigysys-aden.net/v1/key/2eykzDGVmjpCK8n66UFNhlZwebIr\$aty3NulZ9wN1!u!uxiRZgJS72gapQO5buxE/projects/1"
             hashMap[ProjectKeys.KEY_USERNAME] = ""
             hashMap[ProjectKeys.KEY_PASSWORD] = ""
             // form_management_preferences.xml
