@@ -1,16 +1,16 @@
 {
   "project_info": {
     "project_number": "640412404956",
-    "firebase_url": "https://getodk-forks.firebaseio.com",
-    "project_id": "getodk-forks",
-    "storage_bucket": "getodk-forks.appspot.com"
+    "firebase_url": "https://opendatakit-forks.firebaseio.com",
+    "project_id": "opendatakit-forks",
+    "storage_bucket": "opendatakit-forks.appspot.com"
   },
   "client": [
     {
       "client_info": {
         "mobilesdk_app_id": "1:640412404956:android:730483f389563845cb7819",
         "android_client_info": {
-          "package_name": "org.odk.collect.android"
+          "package_name": "org.prodigy.collect.android"
         }
       },
       "oauth_client": [
