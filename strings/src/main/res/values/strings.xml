@@ -1146,7 +1146,7 @@
     <!-- Immediately followed by "Try Collect" which is a link to create a demo project -->
     <string name="dont_have_project">Don\'t have a project yet?</string>
     <!-- Preceded by "Don't have a project yet?" question -->
-    <string name="try_demo">Try a demo</string>
+    <string name="try_demo">Try a default</string>
     <string name="scan_configuration_qr_code">Scan configuration QR code</string>
 
     <!-- Error shown when a user tries to open a form that's in a different project -->
