@@ -15,6 +15,7 @@ import androidx.test.espresso.matcher.RootMatchers.isDialog
 import androidx.test.espresso.matcher.ViewMatchers.isRoot
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.android.material.appbar.MaterialToolbar
 import com.journeyapps.barcodescanner.BarcodeResult
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
@@ -39,6 +40,7 @@ import org.odk.collect.androidshared.utils.CompressionUtils
 import org.odk.collect.fragmentstest.FragmentScenarioLauncherRule
 import org.odk.collect.permissions.PermissionsChecker
 import org.odk.collect.permissions.PermissionsProvider
+import org.odk.collect.projects.ProjectCreator
 import org.robolectric.shadows.ShadowToast
 
 @RunWith(AndroidJUnit4::class)
@@ -106,6 +108,17 @@ class QrCodeProjectCreatorDialogTest {
             assertThat(it.isVisible, `is`(true))
             onView(isRoot()).perform(pressBack())
             assertThat(it.isVisible, `is`(false))
+        }
+    }
+
+    @Test
+    fun `The dialog should have the option to import settings from file`() {
+        val scenario = launcherRule.launch(QrCodeProjectCreatorDialog::class.java)
+        scenario.onFragment { fragment ->
+            val toolbar = fragment.requireView().findViewById<MaterialToolbar>(org.odk.collect.androidshared.R.id.toolbar)
+            val importMenuItem = toolbar.menu.findItem(R.id.menu_item_scan_sd_card)
+
+            assertThat(importMenuItem, `is`(notNullValue()))
         }
     }
 

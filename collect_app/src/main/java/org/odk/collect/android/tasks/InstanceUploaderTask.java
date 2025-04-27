@@ -26,7 +26,6 @@ import org.odk.collect.android.application.Collect;
 import org.odk.collect.android.instancemanagement.InstanceDeleter;
 import org.odk.collect.android.instancemanagement.InstancesDataService;
 import org.odk.collect.android.listeners.InstanceUploaderListener;
-import org.odk.collect.android.openrosa.OpenRosaHttpInterface;
 import org.odk.collect.android.projects.ProjectsDataService;
 import org.odk.collect.android.upload.FormUploadAuthRequestedException;
 import org.odk.collect.android.upload.FormUploadException;
@@ -38,6 +37,7 @@ import org.odk.collect.forms.FormsRepository;
 import org.odk.collect.forms.instances.Instance;
 import org.odk.collect.forms.instances.InstancesRepository;
 import org.odk.collect.metadata.PropertyManager;
+import org.odk.collect.openrosa.http.OpenRosaHttpInterface;
 import org.odk.collect.settings.SettingsProvider;
 import org.odk.collect.settings.keys.ProjectKeys;
 
@@ -74,6 +74,7 @@ public class InstanceUploaderTask extends AsyncTask<Long, Integer, InstanceUploa
     // Custom submission URL, username and password that can be sent via intent extras by external
     // applications
     private String completeDestinationUrl;
+    private String referrer;
     private String customUsername;
     private String customPassword;
     private InstancesRepository instancesRepository;
@@ -108,7 +109,7 @@ public class InstanceUploaderTask extends AsyncTask<Long, Integer, InstanceUploa
             publishProgress(i + 1, instancesToUpload.size());
 
             if (completeDestinationUrl != null) {
-                Analytics.log(AnalyticsEvents.INSTANCE_UPLOAD_CUSTOM_SERVER);
+                Analytics.log(AnalyticsEvents.INSTANCE_UPLOAD_CUSTOM_SERVER, "label", referrer != null ? referrer : "");
             }
 
             try {
@@ -152,7 +153,7 @@ public class InstanceUploaderTask extends AsyncTask<Long, Integer, InstanceUploa
         InstanceDeleter instanceDeleter = new InstanceDeleter(instancesRepository, formsRepository);
         instanceDeleter.delete(instancesToDelete.map(Instance::getDbId).toArray(Long[]::new));
 
-        instancesDataService.update(projectsDataService.getCurrentProject().getUuid());
+        instancesDataService.update(projectsDataService.requireCurrentProject().getUuid());
         return outcome;
     }
 
@@ -202,12 +203,9 @@ public class InstanceUploaderTask extends AsyncTask<Long, Integer, InstanceUploa
         this.settingsProvider = settingsProvider;
     }
 
-    public void setCompleteDestinationUrl(String completeDestinationUrl) {
-        setCompleteDestinationUrl(completeDestinationUrl, true);
-    }
-
-    public void setCompleteDestinationUrl(String completeDestinationUrl, boolean clearPreviousConfig) {
+    public void setCompleteDestinationUrl(String completeDestinationUrl, String referrer, boolean clearPreviousConfig) {
         this.completeDestinationUrl = completeDestinationUrl;
+        this.referrer = referrer;
         if (clearPreviousConfig) {
             setTemporaryCredentials();
         }

@@ -170,12 +170,12 @@ public class InstanceUploaderListActivity extends LocalizedActivity implements
 
     public void onUploadButtonsClicked() {
         if (!connectivityProvider.isDeviceOnline()) {
-            ToastUtils.showShortToast(this, org.odk.collect.strings.R.string.no_connection);
+            ToastUtils.showShortToast(org.odk.collect.strings.R.string.no_connection);
             return;
         }
 
         if (autoSendOngoing) {
-            ToastUtils.showShortToast(this, org.odk.collect.strings.R.string.send_in_progress);
+            ToastUtils.showShortToast(org.odk.collect.strings.R.string.send_in_progress);
             return;
         }
 
@@ -187,7 +187,7 @@ public class InstanceUploaderListActivity extends LocalizedActivity implements
             multiSelectViewModel.unselectAll();
         } else {
             // no items selected
-            ToastUtils.showLongToast(this, org.odk.collect.strings.R.string.noselect_error);
+            ToastUtils.showLongToast(org.odk.collect.strings.R.string.noselect_error);
         }
     }
 
@@ -257,7 +257,7 @@ public class InstanceUploaderListActivity extends LocalizedActivity implements
     private void updateAutoSendStatus() {
         // This shouldn't use WorkManager directly but it's likely this code will be removed when
         // we eventually move sending forms to a Foreground Service (rather than a blocking AsyncTask)
-        String tag = ((FormUpdateAndInstanceSubmitScheduler) instanceSubmitScheduler).getAutoSendTag(projectsDataService.getCurrentProject().getUuid());
+        String tag = ((FormUpdateAndInstanceSubmitScheduler) instanceSubmitScheduler).getAutoSendTag(projectsDataService.requireCurrentProject().getUuid());
         LiveData<List<WorkInfo>> statuses = WorkManager.getInstance().getWorkInfosForUniqueWorkLiveData(tag);
         statuses.observe(this, workStatuses -> {
             if (workStatuses != null) {
@@ -376,11 +376,12 @@ public class InstanceUploaderListActivity extends LocalizedActivity implements
         Cursor c = (Cursor) listView.getAdapter().getItem(position);
         boolean encryptedForm = !Boolean.parseBoolean(c.getString(c.getColumnIndex(DatabaseInstanceColumns.CAN_EDIT_WHEN_COMPLETE)));
         if (encryptedForm) {
-            ToastUtils.showLongToast(this, org.odk.collect.strings.R.string.encrypted_form);
+            ToastUtils.showLongToast(org.odk.collect.strings.R.string.encrypted_form);
         } else {
             long instanceId = c.getLong(c.getColumnIndex(DatabaseInstanceColumns._ID));
-            Intent intent = FormFillingIntentFactory.editInstanceIntent(this, projectsDataService.getCurrentProject().getUuid(), instanceId);
+            Intent intent = FormFillingIntentFactory.editDraftFormIntent(this, projectsDataService.requireCurrentProject().getUuid(), instanceId);
             startActivity(intent);
+            finish();
         }
     }
 

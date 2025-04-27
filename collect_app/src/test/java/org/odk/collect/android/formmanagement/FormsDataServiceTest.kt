@@ -11,7 +11,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.verifyNoInteractions
-import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
@@ -21,6 +20,7 @@ import org.odk.collect.analytics.Analytics
 import org.odk.collect.android.injection.DaggerUtils
 import org.odk.collect.android.injection.config.ProjectDependencyModuleFactory
 import org.odk.collect.android.notifications.Notifier
+import org.odk.collect.android.projects.ProjectDependencyModule
 import org.odk.collect.android.storage.StorageSubdirectory
 import org.odk.collect.android.utilities.ChangeLockProvider
 import org.odk.collect.androidshared.data.AppState
@@ -32,8 +32,8 @@ import org.odk.collect.forms.FormSourceException
 import org.odk.collect.formstest.FormUtils
 import org.odk.collect.projects.Project
 import org.odk.collect.settings.keys.ProjectKeys
+import org.odk.collect.shared.locks.BooleanChangeLock
 import org.odk.collect.shared.strings.Md5.getMd5Hash
-import org.odk.collect.testshared.BooleanChangeLock
 
 @RunWith(AndroidJUnit4::class)
 class FormsDataServiceTest {
@@ -64,18 +64,18 @@ class FormsDataServiceTest {
     fun setup() {
         project = setupProject()
 
-        val formSourceProvider = mock<FormSourceProvider> { on { create(any()) } doReturn formSource }
-
-        val projectDependencyModule = ProjectDependencyModuleFactory(
-            settingsProvider,
+        val projectDependencyModule = ProjectDependencyModule(
+            project.uuid,
+            { settingsProvider.getUnprotectedSettings(project.uuid) },
             formsRepositoryProvider,
             mock(),
             storagePathProvider,
             changeLockProvider,
-            formSourceProvider,
+            { formSource },
+            mock(),
             mock(),
             mock()
-        ).create(project.uuid)
+        )
 
         val projectDependencyModuleFactory = mock<ProjectDependencyModuleFactory>()
         whenever(projectDependencyModuleFactory.create(project.uuid)).thenReturn(projectDependencyModule)
@@ -113,7 +113,7 @@ class FormsDataServiceTest {
     fun `downloadUpdates() does nothing when change lock is locked`() {
         val isSyncing = formsDataService.isSyncing(project.uuid)
 
-        val changeLock = changeLockProvider.create(project.uuid).formsLock as BooleanChangeLock
+        val changeLock = changeLockProvider.create(project.uuid).formsLock
         changeLock.lock()
 
         isSyncing.recordValues { projectValues ->
@@ -130,7 +130,7 @@ class FormsDataServiceTest {
     fun `matchFormsWithServer() does nothing when change lock is locked`() {
         val isSyncing = formsDataService.isSyncing(project.uuid)
 
-        val changeLock = changeLockProvider.create(project.uuid).formsLock as BooleanChangeLock
+        val changeLock = changeLockProvider.create(project.uuid).formsLock
         changeLock.lock()
 
         isSyncing.recordValues { projectValues ->
@@ -149,7 +149,7 @@ class FormsDataServiceTest {
      */
     @Test
     fun `matchFormsWithServer() returns false when change lock is locked`() {
-        val changeLock = changeLockProvider.create(project.uuid).formsLock as BooleanChangeLock
+        val changeLock = changeLockProvider.create(project.uuid).formsLock
         changeLock.lock()
 
         assertThat(formsDataService.matchFormsWithServer(project.uuid), equalTo(false))
@@ -184,6 +184,17 @@ class FormsDataServiceTest {
 
         assertThat(formsDataService.getServerError(project.uuid).getOrAwaitValue(), equalTo(error))
         assertThat(formsDataService.getServerError("other").getOrAwaitValue(), equalTo(null))
+    }
+
+    @Test
+    fun `update() called after matchFormsWithServer() does not clear error state`() {
+        val error = FormSourceException.FetchError()
+        whenever(formSource.fetchFormList()).thenThrow(error)
+        formsDataService.matchFormsWithServer(project.uuid)
+
+        assertThat(formsDataService.getServerError(project.uuid).getOrAwaitValue(), equalTo(error))
+        formsDataService.refresh(project.uuid)
+        assertThat(formsDataService.getServerError(project.uuid).getOrAwaitValue(), equalTo(error))
     }
 
     @Test
@@ -224,11 +235,11 @@ class FormsDataServiceTest {
     fun `update() does nothing when change lock is locked`() {
         val isSyncing = formsDataService.isSyncing(project.uuid)
 
-        val changeLock = changeLockProvider.create(project.uuid).formsLock as BooleanChangeLock
+        val changeLock = changeLockProvider.create(project.uuid).formsLock
         changeLock.lock()
 
         isSyncing.recordValues { projectValues ->
-            formsDataService.update(project.uuid)
+            formsDataService.refresh(project.uuid)
             assertThat(projectValues, equalTo(listOf(false)))
         }
     }

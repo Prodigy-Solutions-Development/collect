@@ -32,11 +32,13 @@ import org.odk.collect.androidshared.utils.CompressionUtils
 import org.odk.collect.material.MaterialFullScreenDialogFragment
 import org.odk.collect.permissions.PermissionListener
 import org.odk.collect.permissions.PermissionsProvider
+import org.odk.collect.projects.ProjectConfigurationResult
+import org.odk.collect.projects.ProjectCreator
 import org.odk.collect.projects.ProjectsRepository
+import org.odk.collect.projects.SettingsConnectionMatcher
 import org.odk.collect.qrcode.QRCodeDecoder
 import org.odk.collect.settings.ODKAppSettingsImporter
 import org.odk.collect.settings.SettingsProvider
-import org.odk.collect.settings.importing.SettingsImportingResult
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -100,13 +102,11 @@ class QrCodeProjectCreatorDialog :
                                         qrCodeDecoder.decode(it)
                                     } catch (e: QRCodeDecoder.QRCodeInvalidException) {
                                         showShortToast(
-                                            requireContext(),
                                             org.odk.collect.strings.R.string.invalid_qrcode
                                         )
                                         ""
                                     } catch (e: QRCodeDecoder.QRCodeNotFoundException) {
                                         showShortToast(
-                                            requireContext(),
                                             org.odk.collect.strings.R.string.qr_code_not_found
                                         )
                                         ""
@@ -124,7 +124,7 @@ class QrCodeProjectCreatorDialog :
         super.onAttach(context)
         DaggerUtils.getComponent(context).inject(this)
 
-        settingsConnectionMatcher = SettingsConnectionMatcher(projectsRepository, settingsProvider)
+        settingsConnectionMatcher = SettingsConnectionMatcherImpl(projectsRepository, settingsProvider)
     }
 
     override fun onCreateView(
@@ -170,12 +170,15 @@ class QrCodeProjectCreatorDialog :
     }
 
     private fun configureMenu() {
-        val menu = binding.toolbarLayout.toolbar.menu
+        val toolbar = binding.toolbarLayout.toolbar
+        toolbar.inflateMenu(R.menu.qr_code_scan_menu)
+
+        val menu = toolbar.menu
         menu.enableIconsVisibility()
 
         menu.removeItem(R.id.menu_item_share)
 
-        binding.toolbarLayout.toolbar.setOnMenuItemClickListener {
+        toolbar.setOnMenuItemClickListener {
             when (it.itemId) {
                 R.id.menu_item_scan_sd_card -> {
                     val photoPickerIntent = Intent(Intent.ACTION_GET_CONTENT)
@@ -185,7 +188,6 @@ class QrCodeProjectCreatorDialog :
                         photoPickerIntent
                     ) {
                         showShortToast(
-                            requireContext(),
                             getString(
                                 org.odk.collect.strings.R.string.activity_not_found,
                                 getString(org.odk.collect.strings.R.string.choose_image)
@@ -258,7 +260,6 @@ class QrCodeProjectCreatorDialog :
                 CompressionUtils.decompress(barcodeResult.text)
             } catch (e: Exception) {
                 showShortToast(
-                    requireContext(),
                     getString(org.odk.collect.strings.R.string.invalid_qrcode)
                 )
                 ""
@@ -286,29 +287,26 @@ class QrCodeProjectCreatorDialog :
     }
 
     override fun createProject(settingsJson: String) {
-        when (projectCreator.createNewProject(settingsJson)) {
-            SettingsImportingResult.SUCCESS -> {
+        when (projectCreator.createNewProject(settingsJson, true)) {
+            ProjectConfigurationResult.SUCCESS -> {
                 Analytics.log(AnalyticsEvents.QR_CREATE_PROJECT)
 
                 ActivityUtils.startActivityAndCloseAllOthers(activity, MainMenuActivity::class.java)
                 ToastUtils.showLongToast(
-                    requireContext(),
                     getString(
                         org.odk.collect.strings.R.string.switched_project,
-                        projectsDataService.getCurrentProject().name
+                        projectsDataService.requireCurrentProject().name
                     )
                 )
             }
 
-            SettingsImportingResult.INVALID_SETTINGS -> ToastUtils.showLongToast(
-                requireContext(),
+            ProjectConfigurationResult.INVALID_SETTINGS -> ToastUtils.showLongToast(
                 getString(
                     org.odk.collect.strings.R.string.invalid_qrcode
                 )
             )
 
-            SettingsImportingResult.GD_PROJECT -> ToastUtils.showLongToast(
-                requireContext(),
+            ProjectConfigurationResult.GD_PROJECT -> ToastUtils.showLongToast(
                 getString(
                     org.odk.collect.strings.R.string.settings_with_gd_protocol
                 )
@@ -320,10 +318,9 @@ class QrCodeProjectCreatorDialog :
         projectsDataService.setCurrentProject(uuid)
         ActivityUtils.startActivityAndCloseAllOthers(activity, MainMenuActivity::class.java)
         ToastUtils.showLongToast(
-            requireContext(),
             getString(
                 org.odk.collect.strings.R.string.switched_project,
-                projectsDataService.getCurrentProject().name
+                projectsDataService.requireCurrentProject().name
             )
         )
     }

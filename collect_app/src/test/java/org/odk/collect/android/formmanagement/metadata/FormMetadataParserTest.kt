@@ -6,6 +6,58 @@ import org.junit.Test
 import org.odk.collect.android.formmanagement.metadata.FormMetadataParser.readMetadata
 
 class FormMetadataParserTest {
+
+    @Test
+    fun readMetadata_canParseWithAttributesOnMainInstance() {
+        val metadata = readMetadata(
+            """
+                <?xml version="1.0"?>
+                <h:html xmlns:h="http://www.w3.org/1999/xhtml"
+                        xmlns="http://www.w3.org/2002/xforms"
+                        xmlns:custom="http://example.com/custom">
+                    <h:head>
+                        <h:title>Form</h:title>
+                        <model>
+                            <instance custom:attribute="blah">
+                                <data id="form">
+                                </data>
+                            </instance>
+                        </model>
+                    </h:head>
+                    <h:body>
+                    </h:body>
+                </h:html>
+            """.trimIndent().byteInputStream()
+        )
+
+        assertThat(metadata.id, equalTo("form"))
+    }
+
+    @Test
+    fun readMetadata_canParseWithXformsNamespace() {
+        val metadata = readMetadata(
+            """
+                <?xml version="1.0"?>
+                <h:html xmlns:h="http://www.w3.org/1999/xhtml"
+                        xmlns:custom="http://www.w3.org/2002/xforms">
+                    <h:head>
+                        <h:title>Form</h:title>
+                        <custom:model>
+                            <custom:instance>
+                                <custom:data custom:id="form">
+                                </custom:data>
+                            </custom:instance>
+                        </custom:model>
+                    </h:head>
+                    <h:body>
+                    </h:body>
+                </h:html>
+            """.trimIndent().byteInputStream()
+        )
+
+        assertThat(metadata.id, equalTo("form"))
+    }
+
     @Test
     fun readMetadata_canParseFormsWithComments() {
         readMetadata(
@@ -95,6 +147,7 @@ class FormMetadataParserTest {
         assertThat(formMetadata.autoDelete, equalTo(null))
         assertThat(formMetadata.base64RsaPublicKey, equalTo(null))
         assertThat(formMetadata.geometryXPath, equalTo(null))
+        assertThat(formMetadata.isEntityForm, equalTo(false))
     }
 
     @Test
@@ -104,10 +157,11 @@ class FormMetadataParserTest {
                 <?xml version="1.0"?>
                 <h:html xmlns="http://www.w3.org/2002/xforms"
                         xmlns:h="http://www.w3.org/1999/xhtml"
-                        xmlns:orx="http://openrosa.org/xforms">
+                        xmlns:orx="http://openrosa.org/xforms"
+                        xmlns:entities="http://www.opendatakit.org/xforms/entities">
                     <h:head>
                         <h:title>My Survey</h:title>
-                        <model>
+                        <model entities:entities-version="2024.1.0">
                             <instance>
                                 <data id="mysurvey" orx:version="2014083101">
                                     <location1 />
@@ -137,6 +191,7 @@ class FormMetadataParserTest {
         assertThat(formMetadata.autoDelete, equalTo("baz"))
         assertThat(formMetadata.base64RsaPublicKey, equalTo("quux"))
         assertThat(formMetadata.geometryXPath, equalTo("/data/location1"))
+        assertThat(formMetadata.isEntityForm, equalTo(true))
     }
 
     @Test
@@ -283,6 +338,49 @@ class FormMetadataParserTest {
         )
 
         assertThat(formMetadata.geometryXPath, equalTo("/data/my-group1/my-group2/location1"))
+    }
+
+    @Test
+    fun readMetadata_withGeopointInNonFirstGroup_returnsExpectedGeopointXPath() {
+        val formMetadata = readMetadata(
+            """
+                <?xml version="1.0"?>
+                <h:html xmlns:h="http://www.w3.org/1999/xhtml"
+                        xmlns="http://www.w3.org/2002/xforms">
+                    <h:head>
+                        <h:title>Two geopoints in group</h:title>
+                        <model>
+                            <instance>
+                                <data id="two-geopoints-group">
+                                    <my-group1>
+                                        <name />
+                                    </my-group1>
+                                    <my-group2>
+                                        <location />
+                                    </my-group2>
+                                </data>
+                            </instance>
+                            <bind nodeset="/data/my-group1/name" type="string" />
+                            <bind nodeset="/data/my-group2/location" type="geopoint" />
+                        </model>
+                    </h:head>
+                    <h:body>
+                        <group ref="/data/my-group1">
+                            <input ref="/data/my-group1/name">
+                                <label>Name</label>
+                            </input>
+                        </group>
+                        <group ref="/data/my-group2">
+                            <input ref="/data/my-group2/location">
+                                <label>Location</label>
+                            </input>
+                        </group>
+                    </h:body>
+                </h:html>
+            """.trimIndent().byteInputStream()
+        )
+
+        assertThat(formMetadata.geometryXPath, equalTo("/data/my-group2/location"))
     }
 
     @Test

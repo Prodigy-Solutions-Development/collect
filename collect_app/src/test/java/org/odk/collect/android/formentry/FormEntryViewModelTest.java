@@ -15,7 +15,9 @@ import static java.util.Arrays.asList;
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import org.javarosa.core.model.FormDef;
 import org.javarosa.core.model.FormIndex;
+import org.javarosa.core.model.SubmissionProfile;
 import org.javarosa.core.model.data.StringData;
 import org.javarosa.core.model.instance.TreeReference;
 import org.javarosa.form.api.FormEntryController;
@@ -32,9 +34,11 @@ import org.odk.collect.android.formentry.support.InMemFormSessionRepository;
 import org.odk.collect.android.javarosawrapper.FailedValidationResult;
 import org.odk.collect.android.javarosawrapper.FakeFormController;
 import org.odk.collect.android.support.MockFormEntryPromptBuilder;
+import org.odk.collect.android.utilities.ChangeLocks;
 import org.odk.collect.androidshared.data.Consumable;
 import org.odk.collect.forms.FormsRepository;
 import org.odk.collect.formstest.InMemFormsRepository;
+import org.odk.collect.shared.locks.BooleanChangeLock;
 import org.odk.collect.testshared.FakeScheduler;
 
 import java.io.FileNotFoundException;
@@ -52,6 +56,7 @@ public class FormEntryViewModelTest {
     private FakeScheduler scheduler;
     private final FormSessionRepository formSessionRepository = new InMemFormSessionRepository();
     private final FormsRepository formsRepository = new InMemFormsRepository();
+    private final ChangeLocks changeLocks = new ChangeLocks(new BooleanChangeLock(), new BooleanChangeLock());
 
     @Rule
     public InstantTaskExecutorRule instantTaskExecutorRule = new InstantTaskExecutorRule();
@@ -65,7 +70,7 @@ public class FormEntryViewModelTest {
         scheduler = new FakeScheduler();
 
         formSessionRepository.set("blah", formController, mock());
-        viewModel = new FormEntryViewModel(() -> 0L, scheduler, formSessionRepository, "blah", formsRepository);
+        viewModel = new FormEntryViewModel(() -> 0L, scheduler, formSessionRepository, "blah", formsRepository, changeLocks);
     }
 
     @Test
@@ -399,5 +404,49 @@ public class FormEntryViewModelTest {
             }
         });
         assertThat(loadCount, equalTo(0));
+    }
+
+    @Test
+    public void isFormEditableAfterFinalization_returnsFalse_whenSubmissionProfileIsMissing() {
+        assertThat(viewModel.isFormEditableAfterFinalization(), equalTo(false));
+    }
+
+    @Test
+    public void isFormEditableAfterFinalization_returnsFalse_whenSubmissionProfileHasNoClientEditableAttribute() {
+        SubmissionProfile submissionProfile = new SubmissionProfile(null, null, null, null, new HashMap<>());
+
+        FormDef formDef = new FormDef();
+        formDef.setDefaultSubmission(submissionProfile);
+        formController.setFormDef(formDef);
+
+        assertThat(viewModel.isFormEditableAfterFinalization(), equalTo(false));
+    }
+
+    @Test
+    public void isFormEditableAfterFinalization_returnsFalse_whenClientEditableAttributeIsNotTrue() {
+        HashMap<String, String> attributeMap = new HashMap<>();
+        attributeMap.put("client-editable", "blah");
+
+        SubmissionProfile submissionProfile = new SubmissionProfile(null, null, null, null, attributeMap);
+
+        FormDef formDef = new FormDef();
+        formDef.setDefaultSubmission(submissionProfile);
+        formController.setFormDef(formDef);
+
+        assertThat(viewModel.isFormEditableAfterFinalization(), equalTo(false));
+    }
+
+    @Test
+    public void isFormEditableAfterFinalization_returnsTrue_whenClientEditableAttributeIsTrue() {
+        HashMap<String, String> attributeMap = new HashMap<>();
+        attributeMap.put("client-editable", "true");
+
+        SubmissionProfile submissionProfile = new SubmissionProfile(null, null, null, null, attributeMap);
+
+        FormDef formDef = new FormDef();
+        formDef.setDefaultSubmission(submissionProfile);
+        formController.setFormDef(formDef);
+
+        assertThat(viewModel.isFormEditableAfterFinalization(), equalTo(true));
     }
 }

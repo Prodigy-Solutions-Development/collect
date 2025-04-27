@@ -46,6 +46,7 @@ import org.junit.Assert.fail
 import org.odk.collect.android.BuildConfig
 import org.odk.collect.android.R
 import org.odk.collect.android.application.Collect
+import org.odk.collect.android.injection.config.AppDependencyModule
 import org.odk.collect.android.storage.StoragePathProvider
 import org.odk.collect.android.support.ActivityHelpers.getLaunchIntent
 import org.odk.collect.android.support.actions.RotateAction
@@ -252,7 +253,12 @@ abstract class Page<T : Page<T>> {
     }
 
     fun clickOnText(text: String): T {
-        Interactions.clickOn(withText(text))
+        Interactions.clickOn(
+            allOf(
+                withText(text),
+                withEffectiveVisibility(ViewMatchers.Visibility.VISIBLE)
+            )
+        )
         return this as T
     }
 
@@ -290,11 +296,11 @@ abstract class Page<T : Page<T>> {
         return clickOnTextInDialog(getTranslatedString(text))
     }
 
-    fun <D : Page<D>> clickOnTextInDialog(text: Int, destination: D): D {
+    fun <D : Page<D>> clickOnTextInDialog(text: Int, destination: Page<D>): D {
         return clickOnTextInDialog(getTranslatedString(text), destination)
     }
 
-    fun <D : Page<D>> clickOnTextInDialog(text: String, destination: D): D {
+    fun <D : Page<D>> clickOnTextInDialog(text: String, destination: Page<D>): D {
         clickOnTextInDialog(text)
         return destination.assertOnPage()
     }
@@ -529,9 +535,10 @@ abstract class Page<T : Page<T>> {
     fun <D : Page<D>> killAndReopenApp(
         launcherRule: ActivityScenarioLauncherRule,
         recentAppsRule: RecentAppsRule,
-        destination: D
+        destination: D,
+        appDependencyModule: AppDependencyModule? = null
     ): D {
-        recentAppsRule.leaveAndKillApp()
+        recentAppsRule.leaveAndKillApp(appDependencyModule)
 
         // reopen
         launcherRule.launch<Activity>(getLaunchIntent())
@@ -572,6 +579,15 @@ abstract class Page<T : Page<T>> {
         }
 
         return destination
+    }
+
+    fun assertNoId(id: Int): T {
+        onView(withId(id)).check(doesNotExist())
+        return this as T
+    }
+
+    fun async(): AsyncPage<T> {
+        return AsyncPage(this as T)
     }
 
     companion object {

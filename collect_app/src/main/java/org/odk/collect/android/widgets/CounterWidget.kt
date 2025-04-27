@@ -8,17 +8,24 @@ import org.javarosa.form.api.FormEntryPrompt
 import org.odk.collect.android.databinding.CounterWidgetBinding
 import org.odk.collect.android.formentry.questions.QuestionDetails
 import org.odk.collect.android.widgets.utilities.StringWidgetUtils
+import java.util.Locale
 
 class CounterWidget(
     context: Context,
-    questionDetails: QuestionDetails
-) : QuestionWidget(context, questionDetails) {
+    questionDetails: QuestionDetails,
+    dependencies: Dependencies
+) : QuestionWidget(context, dependencies, questionDetails) {
     lateinit var binding: CounterWidgetBinding
 
     private var value: Int? = null
         set(newValue) {
             field = newValue?.takeIf { it in 0..MAX_VALUE }
-            binding.value.text = field?.toString().orEmpty()
+
+            val formattedValue = field?.let {
+                String.format(Locale.getDefault(), "%d", it)
+            }.orEmpty()
+
+            binding.value.text = formattedValue
             updateButtonStates(field)
         }
 

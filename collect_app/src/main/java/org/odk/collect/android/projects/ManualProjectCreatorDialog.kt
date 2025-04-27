@@ -21,7 +21,9 @@ import org.odk.collect.androidshared.ui.DialogFragmentUtils
 import org.odk.collect.androidshared.ui.ToastUtils
 import org.odk.collect.androidshared.utils.Validator
 import org.odk.collect.material.MaterialFullScreenDialogFragment
+import org.odk.collect.projects.ProjectCreator
 import org.odk.collect.projects.ProjectsRepository
+import org.odk.collect.projects.SettingsConnectionMatcher
 import org.odk.collect.settings.SettingsProvider
 import javax.inject.Inject
 
@@ -54,7 +56,7 @@ class ManualProjectCreatorDialog :
     override fun onAttach(context: Context) {
         super.onAttach(context)
         DaggerUtils.getComponent(context).inject(this)
-        settingsConnectionMatcher = SettingsConnectionMatcher(projectsRepository, settingsProvider)
+        settingsConnectionMatcher = SettingsConnectionMatcherImpl(projectsRepository, settingsProvider)
     }
 
     override fun onCreateView(
@@ -104,7 +106,7 @@ class ManualProjectCreatorDialog :
 
     private fun handleAddingNewProject() {
         if (!Validator.isUrlValid(binding.urlInputText.text?.trim().toString())) {
-            ToastUtils.showShortToast(requireContext(), org.odk.collect.strings.R.string.url_error)
+            ToastUtils.showShortToast(org.odk.collect.strings.R.string.url_error)
         } else {
             val settingsJson = appConfigurationGenerator.getAppConfigurationAsJsonWithServerDetails(
                 binding.urlInputText.text?.trim().toString(),
@@ -129,11 +131,10 @@ class ManualProjectCreatorDialog :
     }
 
     override fun createProject(settingsJson: String) {
-        projectCreator.createNewProject(settingsJson)
+        projectCreator.createNewProject(settingsJson, true)
         ActivityUtils.startActivityAndCloseAllOthers(activity, MainMenuActivity::class.java)
         ToastUtils.showLongToast(
-            requireContext(),
-            getString(org.odk.collect.strings.R.string.switched_project, projectsDataService.getCurrentProject().name)
+            getString(org.odk.collect.strings.R.string.switched_project, projectsDataService.requireCurrentProject().name)
         )
     }
 
@@ -141,10 +142,9 @@ class ManualProjectCreatorDialog :
         projectsDataService.setCurrentProject(uuid)
         ActivityUtils.startActivityAndCloseAllOthers(activity, MainMenuActivity::class.java)
         ToastUtils.showLongToast(
-            requireContext(),
             getString(
                 org.odk.collect.strings.R.string.switched_project,
-                projectsDataService.getCurrentProject().name
+                projectsDataService.requireCurrentProject().name
             )
         )
     }

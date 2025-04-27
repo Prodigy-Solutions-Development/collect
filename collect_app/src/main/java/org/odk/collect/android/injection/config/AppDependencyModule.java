@@ -8,7 +8,7 @@ import static java.util.Collections.singletonList;
 
 import android.app.Application;
 import android.content.Context;
-import android.media.MediaPlayer;
+import android.content.RestrictionsManager;
 import android.webkit.MimeTypeMap;
 
 import androidx.work.WorkManager;
@@ -46,11 +46,9 @@ import org.odk.collect.android.entities.EntitiesRepositoryProvider;
 import org.odk.collect.android.external.InstancesContract;
 import org.odk.collect.android.formentry.AppStateFormSessionRepository;
 import org.odk.collect.android.formentry.FormSessionRepository;
-import org.odk.collect.android.formentry.media.AudioHelperFactory;
-import org.odk.collect.android.formentry.media.ScreenContextAudioHelperFactory;
 import org.odk.collect.android.formlists.blankformlist.BlankFormListViewModel;
 import org.odk.collect.android.formmanagement.CollectFormEntryControllerFactory;
-import org.odk.collect.android.formmanagement.FormSourceProvider;
+import org.odk.collect.android.formmanagement.OpenRosaClientProvider;
 import org.odk.collect.android.formmanagement.FormsDataService;
 import org.odk.collect.android.formmanagement.ServerFormsDetailsFetcher;
 import org.odk.collect.android.geo.MapConfiguratorProvider;
@@ -62,15 +60,12 @@ import org.odk.collect.android.itemsets.FastExternalItemsetsRepository;
 import org.odk.collect.android.mainmenu.MainMenuViewModelFactory;
 import org.odk.collect.android.notifications.NotificationManagerNotifier;
 import org.odk.collect.android.notifications.Notifier;
-import org.odk.collect.android.openrosa.CollectThenSystemContentTypeMapper;
-import org.odk.collect.android.openrosa.OpenRosaHttpInterface;
-import org.odk.collect.android.openrosa.okhttp.OkHttpConnection;
-import org.odk.collect.android.openrosa.okhttp.OkHttpOpenRosaServerClientProvider;
 import org.odk.collect.android.preferences.Defaults;
 import org.odk.collect.android.preferences.PreferenceVisibilityHandler;
 import org.odk.collect.android.preferences.ProjectPreferencesViewModel;
 import org.odk.collect.android.preferences.source.SharedPreferencesSettingsProvider;
-import org.odk.collect.android.projects.ProjectCreator;
+import org.odk.collect.android.projects.SettingsConnectionMatcherImpl;
+import org.odk.collect.android.projects.ProjectCreatorImpl;
 import org.odk.collect.android.projects.ProjectDeleter;
 import org.odk.collect.android.projects.ProjectResetter;
 import org.odk.collect.android.projects.ProjectsDataService;
@@ -94,6 +89,8 @@ import org.odk.collect.android.utilities.WebCredentialsUtils;
 import org.odk.collect.android.version.VersionInformation;
 import org.odk.collect.android.views.BarcodeViewDecoder;
 import org.odk.collect.androidshared.bitmap.ImageCompressor;
+import org.odk.collect.androidshared.system.BroadcastReceiverRegister;
+import org.odk.collect.androidshared.system.BroadcastReceiverRegisterImpl;
 import org.odk.collect.androidshared.system.IntentLauncher;
 import org.odk.collect.androidshared.system.IntentLauncherImpl;
 import org.odk.collect.androidshared.utils.ScreenUtils;
@@ -116,11 +113,19 @@ import org.odk.collect.maps.layers.ReferenceLayerRepository;
 import org.odk.collect.metadata.InstallIDProvider;
 import org.odk.collect.metadata.PropertyManager;
 import org.odk.collect.metadata.SettingsInstallIDProvider;
+import org.odk.collect.mobiledevicemanagement.MDMConfigHandlerImpl;
+import org.odk.collect.openrosa.http.CollectThenSystemContentTypeMapper;
+import org.odk.collect.openrosa.http.OpenRosaHttpInterface;
+import org.odk.collect.openrosa.http.okhttp.OkHttpConnection;
+import org.odk.collect.mobiledevicemanagement.MDMConfigObserver;
+import org.odk.collect.mobiledevicemanagement.MDMConfigHandler;
 import org.odk.collect.permissions.ContextCompatPermissionChecker;
 import org.odk.collect.permissions.PermissionsChecker;
 import org.odk.collect.permissions.PermissionsProvider;
 import org.odk.collect.projects.Project;
+import org.odk.collect.projects.ProjectCreator;
 import org.odk.collect.projects.ProjectsRepository;
+import org.odk.collect.projects.SettingsConnectionMatcher;
 import org.odk.collect.projects.SharedPreferencesProjectsRepository;
 import org.odk.collect.qrcode.QRCodeCreatorImpl;
 import org.odk.collect.qrcode.QRCodeDecoder;
@@ -146,7 +151,6 @@ import dagger.Module;
 import dagger.Provides;
 import kotlin.Unit;
 import kotlin.jvm.functions.Function0;
-import okhttp3.OkHttpClient;
 
 /**
  * Add dependency providers here (annotated with @Provides)
@@ -177,7 +181,7 @@ public class AppDependencyModule {
     public OpenRosaHttpInterface provideHttpInterface(MimeTypeMap mimeTypeMap, UserAgentProvider userAgentProvider, Application application, VersionInformation versionInformation) {
         String cacheDir = application.getCacheDir().getAbsolutePath();
         return new OkHttpConnection(
-                new OkHttpOpenRosaServerClientProvider(new OkHttpClient(), cacheDir),
+                cacheDir,
                 new CollectThenSystemContentTypeMapper(mimeTypeMap),
                 userAgentProvider.getUserAgent()
         );
@@ -207,11 +211,6 @@ public class AppDependencyModule {
     @Provides
     public ReferenceManager providesReferenceManager() {
         return ReferenceManager.instance();
-    }
-
-    @Provides
-    public AudioHelperFactory providesAudioHelperFactory(Scheduler scheduler) {
-        return new ScreenContextAudioHelperFactory(scheduler, MediaPlayer::new);
     }
 
     @Provides
@@ -334,8 +333,8 @@ public class AppDependencyModule {
     }
 
     @Provides
-    public ServerFormsDetailsFetcher providesServerFormDetailsFetcher(FormsRepositoryProvider formsRepositoryProvider, FormSourceProvider formSourceProvider, ProjectsDataService projectsDataService) {
-        Project.Saved currentProject = projectsDataService.getCurrentProject();
+    public ServerFormsDetailsFetcher providesServerFormDetailsFetcher(FormsRepositoryProvider formsRepositoryProvider, OpenRosaClientProvider formSourceProvider, ProjectsDataService projectsDataService) {
+        Project.Saved currentProject = projectsDataService.requireCurrentProject();
         FormsRepository formsRepository = formsRepositoryProvider.create(currentProject.getUuid());
         return new ServerFormsDetailsFetcher(formsRepository, formSourceProvider.create(currentProject.getUuid()));
     }
@@ -407,7 +406,7 @@ public class AppDependencyModule {
     @Provides
     public ProjectCreator providesProjectCreator(ProjectsRepository projectsRepository, ProjectsDataService projectsDataService,
                                                  ODKAppSettingsImporter settingsImporter, SettingsProvider settingsProvider) {
-        return new ProjectCreator(projectsRepository, projectsDataService, settingsImporter, settingsProvider);
+        return new ProjectCreatorImpl(projectsRepository, projectsDataService, settingsImporter, settingsProvider);
     }
 
     @Provides
@@ -425,7 +424,7 @@ public class AppDependencyModule {
     public InstancesDataService providesInstancesDataService(Application application, ProjectsDataService projectsDataService, InstanceSubmitScheduler instanceSubmitScheduler, ProjectDependencyModuleFactory projectsDependencyProviderFactory, Notifier notifier, PropertyManager propertyManager, OpenRosaHttpInterface httpInterface) {
         Function0<Unit> onUpdate = () -> {
             application.getContentResolver().notifyChange(
-                    InstancesContract.getUri(projectsDataService.getCurrentProject().getUuid()),
+                    InstancesContract.getUri(projectsDataService.requireCurrentProject().getUuid()),
                     null
             );
 
@@ -441,8 +440,8 @@ public class AppDependencyModule {
     }
 
     @Provides
-    public ProjectsDataService providesCurrentProjectProvider(SettingsProvider settingsProvider, ProjectsRepository projectsRepository, AnalyticsInitializer analyticsInitializer, Context context, MapsInitializer mapsInitializer) {
-        return new ProjectsDataService(settingsProvider, projectsRepository, analyticsInitializer, mapsInitializer);
+    public ProjectsDataService providesCurrentProjectProvider(Application application, SettingsProvider settingsProvider, ProjectsRepository projectsRepository, AnalyticsInitializer analyticsInitializer, Context context, MapsInitializer mapsInitializer) {
+        return new ProjectsDataService(getState(application), settingsProvider, projectsRepository, analyticsInitializer, mapsInitializer);
     }
 
     @Provides
@@ -486,8 +485,8 @@ public class AppDependencyModule {
     }
 
     @Provides
-    public FormSourceProvider providesFormSourceProvider(SettingsProvider settingsProvider, OpenRosaHttpInterface openRosaHttpInterface) {
-        return new FormSourceProvider(settingsProvider::getUnprotectedSettings, openRosaHttpInterface);
+    public OpenRosaClientProvider providesFormSourceProvider(SettingsProvider settingsProvider, OpenRosaHttpInterface openRosaHttpInterface) {
+        return new OpenRosaClientProvider(settingsProvider::getUnprotectedSettings, openRosaHttpInterface);
     }
 
     @Provides
@@ -550,8 +549,8 @@ public class AppDependencyModule {
     }
 
     @Provides
-    public ProjectResetter providesProjectResetter(StoragePathProvider storagePathProvider, PropertyManager propertyManager, SettingsProvider settingsProvider, FormsRepositoryProvider formsRepositoryProvider, SavepointsRepositoryProvider savepointsRepositoryProvider, InstancesDataService instancesDataService, ProjectsDataService projectsDataService, EntitiesRepositoryProvider entitiesRepositoryProvider) {
-        return new ProjectResetter(storagePathProvider, propertyManager, settingsProvider, formsRepositoryProvider, savepointsRepositoryProvider, instancesDataService, projectsDataService.getCurrentProject().getUuid(), entitiesRepositoryProvider);
+    public ProjectResetter providesProjectResetter(StoragePathProvider storagePathProvider, PropertyManager propertyManager, SettingsProvider settingsProvider, FormsRepositoryProvider formsRepositoryProvider, SavepointsRepositoryProvider savepointsRepositoryProvider, InstancesDataService instancesDataService, ProjectsDataService projectsDataService) {
+        return new ProjectResetter(storagePathProvider, propertyManager, settingsProvider, formsRepositoryProvider, savepointsRepositoryProvider, instancesDataService, projectsDataService.requireCurrentProject().getUuid());
     }
 
     @Provides
@@ -603,7 +602,7 @@ public class AppDependencyModule {
 
     @Provides
     public BlankFormListViewModel.Factory providesBlankFormListViewModel(FormsRepositoryProvider formsRepositoryProvider, InstancesRepositoryProvider instancesRepositoryProvider, Application application, FormsDataService formsDataService, Scheduler scheduler, SettingsProvider settingsProvider, ChangeLockProvider changeLockProvider, ProjectsDataService projectsDataService) {
-        return new BlankFormListViewModel.Factory(instancesRepositoryProvider.create(), application, formsDataService, scheduler, settingsProvider.getUnprotectedSettings(), projectsDataService.getCurrentProject().getUuid());
+        return new BlankFormListViewModel.Factory(instancesRepositoryProvider.create(), application, formsDataService, scheduler, settingsProvider.getUnprotectedSettings(), projectsDataService.requireCurrentProject().getUuid());
     }
 
     @Provides
@@ -614,8 +613,49 @@ public class AppDependencyModule {
 
     @Provides
     public FormLoaderTask.FormEntryControllerFactory formEntryControllerFactory(ProjectsDataService projectsDataService, EntitiesRepositoryProvider entitiesRepositoryProvider, SettingsProvider settingsProvider) {
-        String projectId = projectsDataService.getCurrentProject().getUuid();
+        String projectId = projectsDataService.requireCurrentProject().getUuid();
         EntitiesRepository entitiesRepository = entitiesRepositoryProvider.create(projectId);
         return new CollectFormEntryControllerFactory(entitiesRepository, settingsProvider.getUnprotectedSettings(projectId));
+    }
+
+    @Provides
+    public BroadcastReceiverRegister providesBroadcastReceiverRegister(Context context) {
+        return new BroadcastReceiverRegisterImpl(context);
+    }
+
+    @Provides
+    public RestrictionsManager providesRestrictionsManager(Context context) {
+        return (RestrictionsManager) context.getSystemService(Context.RESTRICTIONS_SERVICE);
+    }
+
+    @Provides
+    public MDMConfigObserver providesMDMConfigObserver(
+            Scheduler scheduler,
+            SettingsProvider settingsProvider,
+            ProjectsRepository projectsRepository,
+            ProjectCreator projectCreator,
+            ODKAppSettingsImporter settingsImporter,
+            BroadcastReceiverRegister broadcastReceiverRegister,
+            RestrictionsManager restrictionsManager
+    ) {
+        SettingsConnectionMatcher settingsConnectionMatcher = new SettingsConnectionMatcherImpl(
+                projectsRepository,
+                settingsProvider
+        );
+
+        MDMConfigHandler mdmConfigHandler = new MDMConfigHandlerImpl(
+                settingsProvider,
+                projectsRepository,
+                projectCreator,
+                settingsImporter,
+                settingsConnectionMatcher
+        );
+
+        return new MDMConfigObserver(
+                scheduler,
+                mdmConfigHandler,
+                broadcastReceiverRegister,
+                restrictionsManager
+        );
     }
 }

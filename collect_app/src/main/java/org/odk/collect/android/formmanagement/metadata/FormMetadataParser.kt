@@ -19,21 +19,10 @@ object FormMetadataParser {
         val body = doc.getRootElement().getElement(null, "body")
         val title = head.getElement(null, "title").getChild(0).toString()
 
-        lateinit var mainInstanceRoot: Element
-        var submission: Element? = null
-        for (i in 0 until model.childCount) {
-            val child = model.getElement(i) ?: continue
-
-            if (child.name == "instance" && child.attributeCount == 0) {
-                for (j in 0 until child.childCount) {
-                    val mainInstanceChild = child.getElement(j) ?: continue
-                    mainInstanceRoot = mainInstanceChild
-                    break
-                }
-            } else if (child.name == "submission") {
-                submission = child
-            }
-        }
+        val modelElements = getChildren(model)
+        val mainInstance = modelElements.first { it.name == "instance" }
+        val mainInstanceRoot = getChildren(mainInstance).first()
+        val submission = modelElements.firstOrNull { it.name == "submission" }
 
         val id = mainInstanceRoot.getAttributeValue(null, "id")
         val version = mainInstanceRoot.getAttributeValue(null, "version")
@@ -42,6 +31,7 @@ object FormMetadataParser {
         val autoDelete = submission?.getAttributeValue(null, "auto-delete")
         val autoSend = submission?.getAttributeValue(null, "auto-send")
         val geometryXPath = getFirstGeopointXPath(model, mainInstanceRoot, body)
+        val isEntityForm = model.getAttributeValue(null, "entities-version") != null
 
         return FormMetadata(
             title,
@@ -51,8 +41,20 @@ object FormMetadataParser {
             base64RsaPublicKey,
             autoDelete,
             autoSend,
-            geometryXPath
+            geometryXPath,
+            isEntityForm
         )
+    }
+
+    private fun getChildren(element: Element): List<Element> {
+        return 0.until(element.childCount).fold(emptyList()) { list, i ->
+            val child = element.getElement(i)
+            if (child != null) {
+                list + listOf(child)
+            } else {
+                list
+            }
+        }
     }
 
     /**
@@ -109,15 +111,18 @@ object FormMetadataParser {
     ): String? {
         for (position in 0 until parentRoot.childCount) {
             val child = parentRoot.getElement(position) ?: continue
-            val xpath = if (parentXPath == null) {
+            val currentXPath = if (parentXPath == null) {
                 "/${parentRoot.name}/${child.name}"
             } else {
                 "$parentXPath/${child.name}"
             }
-            if (geopointXPaths.contains(xpath)) {
-                return xpath
-            } else if (child.childCount > 0 && !repeatXPaths.contains(xpath)) {
-                return getFirstPrimaryInstanceGeopointXPath(geopointXPaths, repeatXPaths, child, xpath)
+            if (geopointXPaths.contains(currentXPath)) {
+                return currentXPath
+            } else if (child.childCount > 0 && !repeatXPaths.contains(currentXPath)) {
+                val nestedXPath = getFirstPrimaryInstanceGeopointXPath(geopointXPaths, repeatXPaths, child, currentXPath)
+                if (nestedXPath != null) {
+                    return nestedXPath
+                }
             }
         }
         return null

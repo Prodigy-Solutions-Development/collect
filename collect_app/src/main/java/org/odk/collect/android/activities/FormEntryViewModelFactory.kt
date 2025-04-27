@@ -11,6 +11,7 @@ import org.odk.collect.android.formentry.BackgroundAudioViewModel
 import org.odk.collect.android.formentry.BackgroundAudioViewModel.RecordAudioActionRegistry
 import org.odk.collect.android.formentry.FormEndViewModel
 import org.odk.collect.android.formentry.FormEntryViewModel
+import org.odk.collect.android.formentry.FormOpeningMode
 import org.odk.collect.android.formentry.FormSessionRepository
 import org.odk.collect.android.formentry.PrinterWidgetViewModel
 import org.odk.collect.android.formentry.audit.IdentityPromptViewModel
@@ -22,7 +23,7 @@ import org.odk.collect.android.formentry.saving.FormSaveViewModel
 import org.odk.collect.android.instancemanagement.InstancesDataService
 import org.odk.collect.android.instancemanagement.autosend.AutoSendSettingsProvider
 import org.odk.collect.android.projects.ProjectsDataService
-import org.odk.collect.android.utilities.ApplicationConstants
+import org.odk.collect.android.utilities.ChangeLockProvider
 import org.odk.collect.android.utilities.FormsRepositoryProvider
 import org.odk.collect.android.utilities.InstancesRepositoryProvider
 import org.odk.collect.android.utilities.MediaUtils
@@ -57,7 +58,8 @@ class FormEntryViewModelFactory(
     private val savepointsRepositoryProvider: SavepointsRepositoryProvider,
     private val qrCodeCreator: QRCodeCreator,
     private val htmlPrinter: HtmlPrinter,
-    private val instancesDataService: InstancesDataService
+    private val instancesDataService: InstancesDataService,
+    private val changeLockProvider: ChangeLockProvider
 ) : AbstractSavedStateViewModelFactory(owner, null) {
 
     override fun <T : ViewModel> create(
@@ -65,7 +67,7 @@ class FormEntryViewModelFactory(
         modelClass: Class<T>,
         handle: SavedStateHandle
     ): T {
-        val projectId = projectsDataService.getCurrentProject().uuid
+        val projectId = projectsDataService.requireCurrentProject().uuid
 
         return when (modelClass) {
             FormEntryViewModel::class.java -> FormEntryViewModel(
@@ -73,7 +75,8 @@ class FormEntryViewModelFactory(
                 scheduler,
                 formSessionRepository,
                 sessionId,
-                formsRepositoryProvider.create(projectId)
+                formsRepositoryProvider.create(projectId),
+                changeLockProvider.create(projectId)
             )
 
             FormSaveViewModel::class.java -> {
@@ -95,7 +98,7 @@ class FormEntryViewModelFactory(
 
             BackgroundAudioViewModel::class.java -> {
                 val recordAudioActionRegistry =
-                    if (mode == ApplicationConstants.FormModes.VIEW_SENT) {
+                    if (mode == FormOpeningMode.VIEW_SENT) {
                         object : RecordAudioActionRegistry {
                             override fun register(listener: BiConsumer<TreeReference, String?>) {}
                             override fun unregister() {}

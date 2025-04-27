@@ -24,6 +24,22 @@ class EntityFormTest {
         .around(rule)
 
     @Test
+    fun fillingEntityRegistrationForm_createsEntityWithValuesTreatedAsOpaqueStrings() {
+        testDependencies.server.addForm("entities-with-dates-registration.xml")
+        testDependencies.server.addForm("entities-with-dates-follow-up.xml")
+
+        rule.withMatchExactlyProject(testDependencies.server.url)
+            .startBlankForm("Entities With Dates Registration")
+            .swipeToEndScreen()
+            .clickFinalize()
+
+            .startBlankForm("Entities With Dates Follow Up")
+            // .assertText("2024-11-15")
+            .swipeToNextQuestion("Select date")
+            .assertText("2024-11-15")
+    }
+
+    @Test
     fun fillingEntityRegistrationForm_createsEntityForFollowUpForms() {
         testDependencies.server.addForm("one-question-entity-registration.xml")
         testDependencies.server.addForm(
@@ -127,12 +143,12 @@ class EntityFormTest {
         testDependencies.server.apply {
             addForm(
                 "one-question-entity-update.xml",
-                listOf(EntityListItem("people.csv"))
+                listOf(EntityListItem("people.csv", "people.csv", 1))
             )
 
             addForm(
                 "one-question-entity-follow-up.xml",
-                listOf(EntityListItem("people.csv", "updated-people.csv"))
+                listOf(EntityListItem("people.csv", "updated-people.csv", 2))
             )
         }
 
@@ -152,26 +168,6 @@ class EntityFormTest {
             .startBlankForm("One Question Entity Update")
             .assertText("Ro-Ro Roy")
             .assertTextDoesNotExist("Roman Roy")
-    }
-
-    @Test
-    fun disablingLocalEntities_stopsThemFromBeingShownInFollowUpForms() {
-        testDependencies.server.addForm("one-question-entity-registration.xml")
-        testDependencies.server.addForm(
-            "one-question-entity-update.xml",
-            listOf(EntityListItem("people.csv"))
-        )
-
-        rule.withMatchExactlyProject(testDependencies.server.url)
-            .startBlankForm("One Question Entity Registration")
-            .fillOutAndFinalize(FormEntryPage.QuestionAndAnswer("Name", "Logan Roy"))
-
-            .disableLocalEntitiesInForms()
-
-            .startBlankForm("One Question Entity Update")
-            .assertQuestion("Select person")
-            .assertText("Roman Roy")
-            .assertTextDoesNotExist("Logan Roy")
     }
 
     @Test
@@ -225,5 +221,41 @@ class EntityFormTest {
             .startBlankFormWithError("One Question Entity Registration", true)
             .assertTextInDialog(R.string.unrecognized_entity_version, "2020.1.0")
             .clickOKOnDialog(MainMenuPage())
+    }
+
+    @Test
+    fun closingEntityForm_releasesTheLockAndLetsOtherEntityFormsToBeStarted() {
+        rule.startAtFirstLaunch()
+            .clickTryCollect()
+            .copyForm("one-question-entity-registration.xml")
+            .startBlankForm("One Question Entity Registration")
+            .pressBackAndDiscardForm()
+            .startBlankForm("One Question Entity Registration")
+    }
+
+    @Test
+    fun aLocallyCreatedEntity_thatIsDeletedOnTheServer_isNotAvailableToFollowUpForms() {
+        testDependencies.server.includeIntegrityUrl()
+        testDependencies.server.addForm("one-question-entity-registration-id.xml")
+        testDependencies.server.addForm(
+            "one-question-entity-update.xml",
+            listOf(EntityListItem("people.csv"))
+        )
+
+        rule.withMatchExactlyProject(testDependencies.server.url)
+            .startBlankForm("One Question Entity Registration")
+            .fillOutAndFinalize(FormEntryPage.QuestionAndAnswer("Name", "Logan Roy"))
+
+            .also {
+                testDependencies.server.deleteEntity("people.csv", "Logan Roy")
+            }
+
+            .clickFillBlankForm()
+            .clickRefresh()
+
+            .clickOnForm("One Question Entity Update")
+            .assertQuestion("Select person")
+            .assertText("Roman Roy")
+            .assertTextDoesNotExist("Logan Roy")
     }
 }
